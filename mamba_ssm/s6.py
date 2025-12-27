@@ -1,4 +1,3 @@
-
 # mamba_ssm/s6.py
 import torch
 import torch.nn as nn
@@ -18,29 +17,54 @@ class S6(nn.Module):
         A = torch.arange(1, self.d_state + 1, dtype=torch.float32).repeat(self.d_inner, 1)
         self.A_log = nn.Parameter(torch.log(A))
         self.D = nn.Parameter(torch.ones(self.d_inner))
-        
-    def forward(self, x):
+
+        dt_min = 0.001
+        dt_max = 0.1
+        inv_dt_min = torch.log(torch.exp(torch.tensor(dt_min)) - 1)
+        inv_dt_max = torch.log(torch.exp(torch.tensor(dt_max)) - 1)
+        with torch.no_grad():
+            self.dt_proj.bias.uniform_(inv_dt_min, inv_dt_max)
+            nn.init.uniform_(self.dt_proj.weight, -0.1, 0.1)
+
+    def forward(self, x, inference_params=None):
         b, l, d = x.shape
         
         x_proj = self.x_proj(x)
         dt_x, B, C = torch.split(x_proj, [self.dt_rank, self.d_state, self.d_state], dim=-1)
 
         dt = F.softplus(self.dt_proj(dt_x))
-        A = -torch.exp(self.A_log) 
+        A = -torch.exp(self.A_log)
 
         dA = torch.exp(torch.einsum('b l d, d n -> b l d n', dt, A))
         dB = torch.einsum('b l d, b l n -> b l d n', dt, B)
-
-        h = torch.zeros(b, self.d_inner, self.d_state, device=x.device)
-        ys = []
         
-        for t in range(l):
-            h = dA[:, t] * h + dB[:, t] * x[:, t].unsqueeze(-1)
-            y = torch.einsum('b d n, b n -> b d', h, C[:, t])
-            ys.append(y)
-            
-        y = torch.stack(ys, dim=1) 
+        if inference_params is not None:
+            return self.step(x, dA, dB, C, inference_params)
+
+        dBx = dB * x.unsqueeze(-1)
+        
+        log_A = torch.einsum('b l d, d n -> b l d n', dt, A)
+        L = torch.cumsum(log_A, dim=1)
+        
+        L_term = torch.exp(L)
+        L_term_inv = torch.exp(-L)
+        
+        h_term = torch.cumsum(dBx * L_term_inv, dim=1)
+        h = h_term * L_term
+        
+        y = torch.einsum('b l d n, b l n -> b l d', h, C)
         y = y + x * self.D
         
         return y
-    
+
+    def step(self, x, dA, dB, C, inference_params):
+        h_prev = inference_params.get('ssm_state', torch.zeros(x.shape[0], self.d_inner, self.d_state, device=x.device))
+        
+        h = dA[:, 0] * h_prev + dB[:, 0] * x[:, 0].unsqueeze(-1)
+        
+        inference_params['ssm_state'] = h
+        
+        y = torch.einsum('b d n, b n -> b d', h, C[:, 0])
+        y = y + x[:, 0] * self.D
+        
+        return y.unsqueeze(1)
