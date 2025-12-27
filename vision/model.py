@@ -4,11 +4,11 @@ from mamba_ssm.utils import RMSNorm
 from .block import BiDirectionalMambaBlock
 
 class VisionMamba(nn.Module):
-    def __init__(self, config, num_classes=10):
+    def __init__(self, config, num_classes=10, channels=1):
         super().__init__()
         self.config = config
         
-        self.patch_embed = nn.Conv2d(3, config.d_model, kernel_size=4, stride=4)
+        self.patch_embed = nn.Conv2d(channels, config.d_model, kernel_size=4, stride=4)
         
         self.layers = nn.ModuleList([BiDirectionalMambaBlock(config) for _ in range(config.n_layers)])
         self.norm_f = RMSNorm(config.d_model)
