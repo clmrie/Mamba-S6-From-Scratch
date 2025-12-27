@@ -3,6 +3,31 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# JIT compiles this loop to C++ for speed (replaces torch.func)
+@torch.jit.script
+def scan_jit(x, dA, dB, C, D):
+    B, L, D_model = x.shape
+    N = dA.shape[-1]
+    
+    # Force float32 for stability during accumulation
+    h = torch.zeros(B, D_model, N, device=x.device, dtype=torch.float32)
+    y = torch.zeros(B, L, D_model, device=x.device, dtype=x.dtype)
+    
+    dBx = dB * x.unsqueeze(-1)
+    
+    for t in range(L):
+        # Recurrence: h_t = dA * h_{t-1} + dB * x
+        h = dA[:, t] * h + dBx[:, t]
+        
+        # Output: y_t = h_t * C + x * D
+        # Contract over state dimension N
+        C_t = C[:, t].unsqueeze(1) # [B, 1, N]
+        y_val = torch.sum(h * C_t, dim=-1) # [B, D]
+        
+        y[:, t] = y_val.to(y.dtype) + x[:, t] * D
+        
+    return y
+
 class S6(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -18,6 +43,7 @@ class S6(nn.Module):
         self.A_log = nn.Parameter(torch.log(A))
         self.D = nn.Parameter(torch.ones(self.d_inner))
 
+        # S4D-Real Initialization for stability
         dt_min = 0.001
         dt_max = 0.1
         inv_dt_min = torch.log(torch.exp(torch.tensor(dt_min)) - 1)
@@ -33,7 +59,7 @@ class S6(nn.Module):
         dt_x, B, C = torch.split(x_proj, [self.dt_rank, self.d_state, self.d_state], dim=-1)
 
         dt = F.softplus(self.dt_proj(dt_x))
-        A = -torch.exp(self.A_log)
+        A = -torch.exp(self.A_log) # Enforce negative A
 
         dA = torch.exp(torch.einsum('b l d, d n -> b l d n', dt, A))
         dB = torch.einsum('b l d, b l n -> b l d n', dt, B)
@@ -41,30 +67,15 @@ class S6(nn.Module):
         if inference_params is not None:
             return self.step(x, dA, dB, C, inference_params)
 
-        dBx = dB * x.unsqueeze(-1)
-        
-        log_A = torch.einsum('b l d, d n -> b l d n', dt, A)
-        L = torch.cumsum(log_A, dim=1)
-        
-        L_term = torch.exp(L)
-        L_term_inv = torch.exp(-L)
-        
-        h_term = torch.cumsum(dBx * L_term_inv, dim=1)
-        h = h_term * L_term
-        
-        y = torch.einsum('b l d n, b l n -> b l d', h, C)
-        y = y + x * self.D
+        # Use the JIT compiled scan
+        y = scan_jit(x, dA, dB, C, self.D)
         
         return y
 
     def step(self, x, dA, dB, C, inference_params):
         h_prev = inference_params.get('ssm_state', torch.zeros(x.shape[0], self.d_inner, self.d_state, device=x.device))
-        
         h = dA[:, 0] * h_prev + dB[:, 0] * x[:, 0].unsqueeze(-1)
-        
         inference_params['ssm_state'] = h
-        
         y = torch.einsum('b d n, b n -> b d', h, C[:, 0])
         y = y + x[:, 0] * self.D
-        
         return y.unsqueeze(1)
