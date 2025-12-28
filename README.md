@@ -1,4 +1,3 @@
-
 # From Sequence to Spatial: Mamba S6 From Scratch
 
 This repository is a **simple PyTorch reimplementation of Mamba (Selective State Space Models)**, with an extension to **image data**.
@@ -31,8 +30,7 @@ No custom CUDA kernels are used.
 We compare Vision Mamba to a vanilla RNN on pixel-sequence classification.  
 Mamba converges **faster** and reaches a **lower loss**.
 
-
-![Mamba vs RNN](outputs/figures/mamba_vs_rnn.png)
+<img src="outputs/figures/mamba_vs_rnn.png" width="360"/>
 
 ---
 
@@ -49,8 +47,7 @@ Scanning **both directions** removes this limitation.
 | Causal Mamba | 97.00% |
 | **Bi-Directional Vision Mamba (ours)** | **97.93%** |
 
-
-![Ablation Study](outputs/figures/ablation_study.png)
+<img src="outputs/figures/ablation_study.png" width="360"/>
 
 ---
 
@@ -62,8 +59,7 @@ When visualized on a digit **7**, $\Delta$ becomes large on strokes and edges, a
 
 This shows that the model **selects information only when needed**.
 
-
-![Delta Visualization](outputs/figures/delta_visualization.png)
+<img src="outputs/figures/delta_visualization.png" width="360"/>
 
 ---
 
@@ -82,47 +78,3 @@ This shows that the model **selects information only when needed**.
 ├── train_mnist_causal.py   # Causal ablation
 ├── train_rnn_baseline.py   # RNN baseline
 └── train_shakespeare.py    # Language modeling
-````
-
----
-
-## 🛠️ How to Use
-
-### Installation
-
-```bash
-git clone https://github.com/clmrie/Mamba-S6-From-Scratch
-cd Mamba-S6-From-Scratch
-pip install torch torchvision matplotlib pandas
-```
-
-### Training
-
-```bash
-# Best model
-python train_mnist.py
-
-# RNN baseline
-python train_rnn_baseline.py
-
-# Causal Mamba
-python train_mnist_causal.py
-```
-
-### Reproducing Figures
-
-```bash
-python scripts/make_comparison_plot.py
-python scripts/plot_ablation.py
-python scripts/visualize_delta.py
-```
-
----
-
-## 📜 References
-
-* Gu, A., Dao, T. (2023). **Mamba: Linear-Time Sequence Modeling with Selective State Spaces**
-* Official repository: state-spaces/mamba
-
-```
-```
