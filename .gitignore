@@ -3,3 +3,7 @@ data/
 # datasets
 data/
 *.tar.gz
+
+# Python cache
+__pycache__/
+*.pyc
