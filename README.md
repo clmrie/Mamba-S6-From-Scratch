@@ -1,7 +1,4 @@
 
-Here is the complete `README.md` content in raw Markdown format. You can copy and paste this directly into your GitHub repository.
-
-```markdown
 # From Sequence to Spatial: Mamba S6 From Scratch
 
 This repository contains a pure PyTorch reimplementation of the **Mamba** architecture (Selective State Space Models) and a novel extension to Computer Vision tasks. The project focuses on demystifying the Selective Scan (S6) mechanism by implementing it from scratch without custom CUDA kernels, and adapting its inherently causal nature for bi-directional spatial understanding.
@@ -115,4 +112,3 @@ python scripts/visualize_delta.py       # Generates mechanism visualization
 
 ```
 
-```
