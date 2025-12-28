@@ -7,3 +7,4 @@ data/
 # Python cache
 __pycache__/
 *.pyc
+vision_training_log.csv
