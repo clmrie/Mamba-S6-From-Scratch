@@ -32,8 +32,7 @@ We compare Vision Mamba to a vanilla RNN on pixel-sequence classification.
 Mamba converges **faster** and reaches a **lower loss**.
 
 
-::contentReference[oaicite:0]{index=0}
-
+![Mamba vs RNN](outputs/figures/mamba_vs_rnn.png)
 
 ---
 
@@ -51,8 +50,7 @@ Scanning **both directions** removes this limitation.
 | **Bi-Directional Vision Mamba (ours)** | **97.93%** |
 
 
-::contentReference[oaicite:1]{index=1}
-
+![Ablation Study](outputs/figures/ablation_study.png)
 
 ---
 
@@ -65,8 +63,7 @@ When visualized on a digit **7**, $\Delta$ becomes large on strokes and edges, a
 This shows that the model **selects information only when needed**.
 
 
-::contentReference[oaicite:2]{index=2}
-
+![Delta Visualization](outputs/figures/delta_visualization.png)
 
 ---
 
