@@ -30,7 +30,7 @@ No custom CUDA kernels are used.
 We compare Vision Mamba to a vanilla RNN on pixel-sequence classification.  
 Mamba converges **faster** and reaches a **lower loss**.
 
-<img src="outputs/figures/mamba_vs_rnn.png" width="360"/>
+<img src="outputs/figures/mamba_vs_rnn.png" width="500"/>
 
 ---
 
@@ -47,7 +47,7 @@ Scanning **both directions** removes this limitation.
 | Causal Mamba | 97.00% |
 | **Bi-Directional Vision Mamba (ours)** | **97.93%** |
 
-<img src="outputs/figures/ablation_study.png" width="360"/>
+<img src="outputs/figures/ablation_study.png" width="500"/>
 
 ---
 
@@ -59,7 +59,7 @@ When visualized on a digit **7**, $\Delta$ becomes large on strokes and edges, a
 
 This shows that the model **selects information only when needed**.
 
-<img src="outputs/figures/delta_visualization.png" width="360"/>
+<img src="outputs/figures/delta_visualization.png" width="500"/>
 
 ---
 
