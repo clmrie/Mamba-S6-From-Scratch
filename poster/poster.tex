@@ -1,192 +1,260 @@
-\documentclass[final]{beamer}
-\usepackage[size=custom,width=90,height=120,scale=1.0]{beamerposter}
+﻿\documentclass[final]{beamer}
+\usepackage[size=custom,width=90,height=120,scale=1.21]{beamerposter}
 \usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage{tabularx}
 \usepackage{amsmath}
-\usepackage{enumitem}
-\usepackage{multicol}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{float} % for [H] placement in algorithm
 \usepackage{ragged2e}
+\usepackage[dvipsnames]{xcolor} % 为了更好的颜色支持（teal 等命名颜色）
 
 \usetheme{default}
+\setbeamercolor{block title}{fg=white,bg=teal} 
+\setbeamercolor{block body}{fg=black,bg=white}
+\setbeamerfont{block title}{size=\huge}
+\setbeamerfont{block body}{size=\Large}
+\setlength{\parskip}{1.1em}
+
 \setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{caption}[numbered]
+\setlength{\columnsep}{0.5cm}
 
-% Simple placeholder macro for figures/tables
+
 \newcommand{\placeholderbox}[2]{%
-  \fbox{\parbox[c][#2][c]{#1}{\centering Placeholder}}%
+  \fbox{\parbox[c][#2][c]{#1}{\centering \textcolor{gray}{Image Placeholder}}}%
 }
 
-\title{Mamba S6 From Scratch: Reimplementation and Vision Extension}
-\author{Your Name \and Teammate Name}
+\title{Selective State Spaces: Bridging the Gap Between RNNs and Transformers}
+\author{Clement Marie, Ying JIN}
 \institute{Course: Deep Learning Project}
-\date{Poster Presentation: Jan 6}
 
 \begin{document}
 \begin{frame}[t]
-\begin{columns}[t]
+\centering
+\vspace*{0.8cm}
+{\Huge \bfseries\color{teal} Selective State Spaces}\par
+\vspace{0.1cm}
+{\huge \bfseries\color{teal} Bridging the Gap Between RNNs and Transformers}\par
+\vspace{0.35cm}
+{\Large \color{gray!20!black} Clement Marie \quad\textbullet\quad Ying JIN}\par
+\vspace{0.12cm}
+{\large \color{gray!40!black} Course: Deep Learning Project}\par
+\vspace{0.45cm}
+{\color{teal}\rule{0.84\linewidth}{1.8pt}}\vspace{0.45cm}
 
-% Left column
-\begin{column}{0.32\textwidth}
-  \begin{block}{Motivation}
+\begin{columns}[t,totalwidth=\textwidth]
+
+% ============================================================
+% Column 1: Motivation & Core Method (Theory)
+% ============================================================
+\begin{column}{0.33\textwidth}
+  \begin{block}{1. Motivation \& Goal}
     \justifying
-    \emph{Mamba: Linear-Time Sequence Modeling with Selective State Spaces}.
-    Our goal is to reimplement the core Mamba block from scratch, then extend it to
-    spatial data using a bidirectional scan. We evaluate on datasets not used in the
-    original paper to validate generalization. No custom CUDA kernels are used.
+    \textbf{The Problem:} While Transformers dominate deep learning, their quadratic complexity ($O(N^2)$) limits scalability. Mamba (SSM) offers linear-time ($O(N)$) inference, but official implementations are opaque (CUDA-heavy) and strictly causal (unidirectional).
+    
+    \vspace{0.5em}
+    \textbf{Our Goal:} 
+    \begin{enumerate}
+        \item Provide a transparent \textbf{Pure PyTorch} implementation of Selective Scan (S6).
+        \item Extend Mamba with \textbf{Bi-directional Inductive Bias} for Vision tasks.
+    \end{enumerate}
   \end{block}
 
-  \begin{block}{Contributions}
-    \begin{itemize}[leftmargin=*]
-      \item Clean PyTorch reimplementation of S6 selective scan (JIT) without custom CUDA.
-      \item Vision extension via bidirectional scan over patch tokens.
-      \item Evaluation scripts for MNIST, CIFAR-10, TinyShakespeare, plus baselines.
-    \end{itemize}
-  \end{block}
-
-  \begin{block}{Method Overview}
+  \begin{block}{2. Method: Mamba Architecture}
     \justifying
-    Mamba replaces attention with a selective state space model (S6) that is input-dependent.
-    We implement the recurrence with learned discretization $\Delta$ and depthwise causal
-    convolution, followed by gating and projection.
+    Mamba replaces attention with an input-dependent SSM. Key components: \textbf{Learned Discretization $\Delta$}, \textbf{Causal Conv1d}, and \textbf{Gating}.
     \vspace{0.5em}
-    \begin{figure}
+    
+    \begin{figure}[h]
       \centering
-      \placeholderbox{0.9\linewidth}{10cm}
-      \caption{Mamba block diagram (placeholder).}
+      \IfFileExists{../outputs/figures/mamba_arch.jpg}{\includegraphics[width=0.98\linewidth]{../outputs/figures/mamba_arch.jpg}}{\placeholderbox{0.98\linewidth}{5cm}}
+      \vspace{0.6cm}
+      \IfFileExists{../outputs/figures/selective state space model.jpg}{\includegraphics[width=0.98\linewidth]{../outputs/figures/selective state space model.jpg}}{\placeholderbox{0.98\linewidth}{5cm}}
+      \caption{(Top) Gated block with SiLU and residual; (Bottom) Selection mechanism where learned $\Delta$ acts as a gate.}
     \end{figure}
-  \end{block}
-\end{column}
 
-% Middle column
-\begin{column}{0.36\textwidth}
-  \begin{block}{Selective Scan (S6)}
+    \textbf{From Continuous to Discrete:}
+    Discretizing the continuous ODE $h'(t) = \mathbf{A}h(t) + \mathbf{B}x(t)$ with a learned time-step $\Delta$:
+    \vspace{-0.2em}
+    \begin{equation*}
+      \begin{aligned}
+        h_t &= \overline{\mathbf{A}}_t h_{t-1} + \overline{\mathbf{B}}_t x_t, \quad y_t = \mathbf{C}_t h_t \\
+        \text{where } \overline{\mathbf{A}}_t &= \exp(\mathbf{\Delta}_t \mathbf{A}), \quad \overline{\mathbf{B}}_t = (\mathbf{\Delta}_t \mathbf{A})^{-1}(\overline{\mathbf{A}}_t - \mathbf{I}) \cdot \Delta_t \mathbf{B}_t
+      \end{aligned}
+    \end{equation*}
+    \vspace{-0.2em}
+    {\textit{Innovation:} $\Delta_t$ depends on input $x_t$, allowing the model to selectively "remember".}
+  \end{block}
+
+
+  \begin{block}{3. Algorithm: Selective Scan (S6)}
     \justifying
-    For each time step $t$:
-    \[
-      h_t = \Delta A \odot h_{t-1} + \Delta B \odot x_t,\quad
-      y_t = C \odot h_t + D \odot x_t
-    \]
-    where $\Delta$ is input-dependent. We use a low-rank $\Delta$ projection with
-    S4D-style initialization for stability.
-    \vspace{0.5em}
-    \begin{figure}
-      \centering
-      \placeholderbox{0.9\linewidth}{8cm}
-      \caption{Selective scan illustration (placeholder).}
-    \end{figure}
-  \end{block}
-
-  \begin{block}{Vision Extension}
-    \justifying
-    For images, a single causal scan limits spatial context. We scan sequences
-    in both forward and backward directions, then fuse the outputs. Input images
-    are converted into $4 \times 4$ patch tokens.
-    \vspace{0.5em}
-    \begin{figure}
-      \centering
-      \placeholderbox{0.9\linewidth}{8cm}
-      \caption{Bidirectional scan on image patches (placeholder).}
-    \end{figure}
-  \end{block}
-
-  \begin{block}{Implementation Details}
-    \begin{itemize}[leftmargin=*]
-      \item Pure PyTorch implementation using \texttt{torch.jit.script}.
-      \item Depthwise 1D convolution with kernel size $d_{conv}=4$.
-      \item S6 uses input-dependent $\Delta$ with low-rank projection.
-      \item RMSNorm at model output; residual connections per layer.
-      \item Weight tying between token embedding and output head.
-    \end{itemize}
-  \end{block}
-\end{column}
-
-% Right column
-\begin{column}{0.32\textwidth}
-  \begin{block}{Datasets and Evaluation}
-    \begin{itemize}[leftmargin=*]
-      \item MNIST: Vision Mamba, causal ablation, and vanilla RNN baseline.
-      \item CIFAR-10: patch-based image classification.
-      \item TinyShakespeare: character-level language modeling.
-    \end{itemize}
-    \vspace{0.5em}
-    \begin{table}
-      \centering
-      {\footnotesize
-        \begin{tabular}{p{0.30\linewidth}p{0.62\linewidth}}
-          \toprule
-          Dataset & Key training settings (from \texttt{train\_*.py}) \\
-          \midrule
-          MNIST (Vision) & d\_model=64, layers=2, batch=64, lr=1e-3, epochs=5 \\
-          MNIST (Causal) & d\_model=64, layers=2, batch=64, lr=3e-4, epochs=5 \\
-          MNIST (RNN) & input=16, hidden=64, layers=2, batch=64, lr=1e-3, epochs=5 \\
-          CIFAR-10 & d\_model=128, layers=4, batch=64, lr=1e-3, epochs=5 \\
-          TinyShakespeare & d\_model=128, layers=4, block=128, batch=32, lr=1e-3, epochs=10 \\
-          \bottomrule
-        \end{tabular}
-      }
-      \caption{Training settings summary.}
-    \end{table}
-  \end{block}
-
-  \begin{block}{Results}
-    \begin{figure}
-      \centering
-      \includegraphics[width=0.9\linewidth]{../outputs/figures/mamba_vs_rnn.png}
-      \caption{Vision Mamba vs RNN training loss (from \texttt{outputs/figures}).}
-    \end{figure}
-    \begin{table}
-      \centering
-      {\footnotesize
-        \begin{tabular}{lc}
-          \toprule
-          Model & MNIST test accuracy (\%) \\
-          \midrule
-          Vanilla RNN (README) & 94.40 \\
-          Causal Vision Mamba (README) & 97.00 \\
-          Bi-Directional Vision Mamba (README / outputs) & 97.93 \\
-          \bottomrule
-        \end{tabular}
-      }
-      \caption{MNIST accuracy summary reported in README.md.}
-    \end{table}
+    The input-dependent recurrence is computed via a parallel scan.
     \vspace{0.2em}
     {\footnotesize
-      \noindent TinyShakespeare loss: min 1.1920 (step 5000), last 1.2393 (step 5300) from \texttt{outputs/results/shakespeare/shakespeare\_results.csv}.
+    \begin{algorithm}[H]
+      \caption{SSM + Selection (S6)}
+      \begin{algorithmic}[1]
+        \Require Input $x: (B, L, D)$
+            \Ensure Output $y: (B, L, D)$
+            
+            \State $A: (D, N) \gets \text{Parameter}$ \Comment{Fixed structured matrix}
+            
+            \Statex \textcolor{blue}{\textit{// 1. Selection: Projects input to parameters}}
+            \State $B: (B, L, N) \gets \text{Linear}_B(x)$
+            \State $C: (B, L, N) \gets \text{Linear}_C(x)$
+            \State $\Delta: (B, L, D) \gets \text{Softplus}(\text{Parameter} + \text{Linear}_\Delta(x))$
+            
+            \Statex \textcolor{blue}{\textit{// 2. Discretization}}
+            \State $\overline{A}, \overline{B} \gets \text{discretize}(\Delta, A, B)$
+            
+            \Statex \textcolor{blue}{\textit{// 3. Selective Scan (The parallel recurrence)}}
+            \State $y \gets \text{SSM}(\overline{A}, \overline{B}, C)(x)$
+        \State \Return $y$
+      \end{algorithmic}
+    \end{algorithm}
     }
-    \vspace{0.6em}
+  \end{block}
+\end{column}
+
+% ============================================================
+% Column 2: Implementation & Vision Extension (Engineering)
+% ============================================================
+\begin{column}{0.33\textwidth}
+
+  \begin{block}{4. Implementation Details}
+    \begin{itemize}
+      \item \textbf{Framework:} Pure PyTorch (No custom CUDA kernels).
+      \item \textbf{Conv1d:} Kernel size 4, helps with local context.
+      \item \textbf{Normalization:} RMSNorm for stability.
+      \item \textbf{Optimization:} Weight tying between embeddings and output head.
+    \end{itemize}
+
+  The code can be found at : https://github.com/clmrie/Mamba-S6-From-Scratch.
+  \end{block}
+
+  \vspace{1.5cm}
+
+  \begin{block}{5. Vision Extension: Bi-Directional}
+    \justifying
+    \textbf{Why Bi-directional?} Standard Mamba lose context from "future" pixels, which is suboptimal for images. Bi-directional scanning captures global spatial context. We implement a \textbf{Bi-Directional Vision Mamba}:
+    \begin{enumerate}
+        \item Flatten image into patch tokens.
+        \item Scan Forward ($ \rightarrow $) and Backward ($ \leftarrow $).
+        \item Fuse branches (Average/Concat).
+    \end{enumerate}
+    \vspace{0.5em}
+     \vspace{0.5em}
     \begin{figure}
       \centering
-      \placeholderbox{0.9\linewidth}{5cm}
-      \caption{CIFAR-10 results (placeholder; no figure in \texttt{outputs/}).}
+      \IfFileExists{../outputs/figures/ablation_study.png}{\includegraphics[width=0.95\linewidth]{../outputs/figures/ablation_study.png}}{\placeholderbox{0.95\linewidth}{4cm}}
+      \caption{Causal vs. Bi-Directional Performance.}
+    \end{figure}
+  \end{block}
+  
+  \vspace{4.5cm}
+
+  \begin{block}{6. Experimental Setup}
+    \begin{itemize}
+      \item MNIST: Vision Mamba, causal ablation, vanilla RNN baseline.
+      \item CIFAR-10: patch-based classification.
+      \item TinyShakespeare: Character-level LM.
+    \end{itemize}
+
+    \vspace{0.5em}
+
+    \begin{table}
+
+      \centering
+
+      {\small
+
+        \begin{tabular}{p{0.30\linewidth}p{0.62\linewidth}}
+
+          \toprule
+
+          \textbf{Dataset} & \textbf{Key training settings} \\
+
+          \midrule
+
+          MNIST (Vision) & d\_model=64, layers=2, batch=64, lr=1e-3, epochs=5 \\
+
+          MNIST (Causal) & d\_model=64, layers=2, batch=64, lr=3e-4, epochs=5 \\
+
+          MNIST (RNN) & input=16, hidden=64, layers=2, batch=64, lr=1e-3, epochs=5 \\
+
+          CIFAR-10 & d\_model=128, layers=4, batch=64, lr=1e-3, epochs=5 \\
+
+          TinyShakespeare & d\_model=128, layers=4, block=128, batch=32, lr=1e-3, epochs=10 \\
+
+          \bottomrule
+
+        \end{tabular}
+      }
+
+      \caption{Training settings summary}
+
+    \end{table}
+  \end{block}
+\end{column}
+
+% ============================================================
+% Column 3: Results & Conclusion (Evidence)
+% ============================================================
+\begin{column}{0.33\textwidth}
+  \begin{block}{7. Results: Mamba vs RNN}
+    \justifying
+    Vision Mamba converges significantly faster than vanilla RNNs and achieves higher final accuracy.
+    \vspace{0.5em}
+    \begin{figure}
+      \centering
+      \IfFileExists{../outputs/figures/mamba_vs_rnn.png}{\includegraphics[width=0.95\linewidth]{../outputs/figures/mamba_vs_rnn.png}}{\placeholderbox{0.95\linewidth}{5cm}}
+      \caption{Training Loss Comparison on MNIST.}
+    \end{figure}
+
+    \begin{table}
+      \centering
+      {\small
+        \begin{tabular}{lc}
+          \toprule
+          \textbf{Model Architecture} & \textbf{Acc. (\%)} \\
+          \midrule
+          Vanilla RNN & 94.40 \\
+          Causal Vision Mamba & 97.00 \\
+          \textbf{Bi-Directional Vision Mamba (Ours)} & \textbf{97.93} \\
+          \bottomrule
+        \end{tabular}
+      }
+      \caption{Classification Accuracy.}
+    \end{table}
+  \end{block}
+
+  \begin{block}{7. Results: Visulization of delta selection}
+    \justifying
+    We analyze the magnitude of the learned time-step $\Delta_t$ on a "Needle in a Haystack" task.
+The model exhibits distinct \textbf{activation spikes} (high $\Delta$ values) precisely at the positions of critical information (the "needle"), while maintaining low values for irrelevant noise.
+Mathematically, a large $\Delta_t$ increases the update rate of the state $h_t$, effectively \textbf{"opening the gate"} to write information into memory.
+    \vspace{0.5em}
+    \begin{figure}
+      \centering
+      \IfFileExists{../outputs/figures/delta_visualization.png}{\includegraphics[width=0.95\linewidth]{../outputs/figures/delta_visualization.png}}{\placeholderbox{0.95\linewidth}{4cm}}
+      \caption{Visualization of $\Delta$}
     \end{figure}
   \end{block}
 
-  \begin{block}{Ablation and Analysis}
-    \begin{figure}
-      \centering
-      \includegraphics[width=0.9\linewidth]{../outputs/figures/ablation_study.png}
-      \caption{Ablation: causal vs bidirectional scan (from \texttt{outputs/figures}).}
-    \end{figure}
-    \begin{figure}
-      \centering
-      \includegraphics[width=0.9\linewidth]{../outputs/figures/delta_visualization.png}
-      \caption{Visualization of $\Delta$ (from \texttt{outputs/figures}).}
-    \end{figure}
-  \end{block}
-
-  \begin{block}{Conclusion and Future Work}
-    \begin{itemize}[leftmargin=*]
-      \item Reimplemented core Mamba S6 and validated on new datasets.
-      \item Bidirectional scan improves vision tasks.
-      \item Future: larger-scale datasets and optimized kernels.
+  \begin{block}{8. Conclusion}
+    \begin{itemize}
+      \item Successfully reimplemented \textbf{Mamba S6 from scratch} without CUDA kernels.
+      \item \textbf{Bi-directional scanning} is crucial for non-causal data (images), boosting accuracy by $\sim$1\% over causal Mamba.
+      \item Demonstrated linear-time scaling potential on sequence tasks.
     \end{itemize}
   \end{block}
 
   \begin{block}{References}
     \footnotesize
-    \begin{itemize}[leftmargin=*]
-      \item Gu and Dao, \emph{Mamba: Linear-Time Sequence Modeling with Selective State Spaces}, 2023.
-    \end{itemize}
+    [1] Gu \& Dao, \emph{Mamba: Linear-Time Sequence Modeling with Selective State Spaces}, 2023.\\[0.4em]
   \end{block}
 \end{column}
 
