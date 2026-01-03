@@ -59,6 +59,7 @@ class S6(nn.Module):
         dt_x, B, C = torch.split(x_proj, [self.dt_rank, self.d_state, self.d_state], dim=-1)
 
         dt = F.softplus(self.dt_proj(dt_x))
+        self.last_dt = dt  # cache step sizes for visualization/debugging
         A = -torch.exp(self.A_log) # Enforce negative A
 
         dA = torch.exp(torch.einsum('b l d, d n -> b l d n', dt, A))
