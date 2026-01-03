@@ -1,1 +1,3 @@
 epoch,avg_epoch_loss,test_accuracy
+1,0.5753,95.65
+2,0.1238,96.84
