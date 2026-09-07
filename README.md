@@ -78,3 +78,10 @@ This shows that the model **selects information only when needed**.
 ├── train_mnist_causal.py   # Causal ablation
 ├── train_rnn_baseline.py   # RNN baseline
 └── train_shakespeare.py    # Language modeling
+
+```
+
+
+## Personal website
+
+Check out [Clement Marie’s personal website](https://clmrie.github.io/) for my research, projects, and CV.
